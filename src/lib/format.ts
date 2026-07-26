@@ -13,5 +13,5 @@ export function statusLabel(status: WatchlistStatus): string {
 
 export function formatMoney(value: number | null): string {
   if (value === null) return "—";
-  return `$${value.toFixed(2)}`;
+  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }

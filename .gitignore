@@ -41,6 +41,9 @@ yarn-error.log*
 # editor/tool-local config
 .claude/
 
+# personal notes, not part of the app
+HowTo.docx
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

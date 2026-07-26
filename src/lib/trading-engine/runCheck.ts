@@ -89,13 +89,35 @@ async function reconcileItem(supabase: SupabaseClient, item: WatchlistItem) {
 
   if (order.status === "filled") {
     const wasBuy = item.status === "pending_buy";
+    const filledAvgPrice = order.filled_avg_price ? Number(order.filled_avg_price) : null;
+
+    // A sell fill closes out exactly one prior buy for this item - the state
+    // machine never lets a second buy happen before the first is sold - so
+    // the most recent filled buy for this item is always the correct match.
+    let realizedPnl: number | null = null;
+    if (!wasBuy && filledAvgPrice !== null) {
+      const { data: buyTrade } = await supabase
+        .from("trades")
+        .select("filled_avg_price, qty")
+        .eq("watchlist_item_id", item.id)
+        .eq("side", "buy")
+        .eq("status", "filled")
+        .order("filled_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (buyTrade?.filled_avg_price) {
+        realizedPnl = (filledAvgPrice - Number(buyTrade.filled_avg_price)) * Number(buyTrade.qty);
+      }
+    }
+
     await supabase
       .from("trades")
       .update({
         status: order.status,
-        filled_avg_price: order.filled_avg_price ? Number(order.filled_avg_price) : null,
+        filled_avg_price: filledAvgPrice,
         filled_at: new Date().toISOString(),
         raw_response: order,
+        ...(realizedPnl !== null ? { realized_pnl: realizedPnl } : {}),
       })
       .eq("alpaca_order_id", order.id);
 

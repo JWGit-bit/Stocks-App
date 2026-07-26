@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/Modal";
 import { PriceChart } from "@/components/PriceChart";
+import { formatMoney } from "@/lib/format";
 import type { Trade, WatchlistItem } from "@/lib/types";
 import type { Bar } from "@/lib/alpaca/marketData";
 
@@ -83,7 +84,8 @@ export function StockHistoryModal({
                   <th className="py-1 pr-2">Side</th>
                   <th className="py-1 pr-2">Qty</th>
                   <th className="py-1 pr-2">Fill price</th>
-                  <th className="py-1">Status</th>
+                  <th className="py-1 pr-2">Status</th>
+                  <th className="py-1">P/L</th>
                 </tr>
               </thead>
               <tbody>
@@ -97,7 +99,18 @@ export function StockHistoryModal({
                     <td className="py-1 pr-2">
                       {t.filled_avg_price ?? "—"}
                     </td>
-                    <td className="py-1">{t.status ?? "—"}</td>
+                    <td className="py-1 pr-2">{t.status ?? "—"}</td>
+                    <td
+                      className={
+                        t.realized_pnl === null
+                          ? "py-1"
+                          : `py-1 ${t.realized_pnl >= 0 ? "text-green-700 dark:text-green-500" : "text-red-600"}`
+                      }
+                    >
+                      {t.realized_pnl === null
+                        ? "—"
+                        : `${t.realized_pnl >= 0 ? "+" : ""}${formatMoney(t.realized_pnl)}`}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -29,6 +29,7 @@ export interface Trade {
   client_order_id: string | null;
   status: string | null;
   filled_avg_price: number | null;
+  realized_pnl: number | null;
   is_paper: boolean;
   submitted_at: string;
   filled_at: string | null;
