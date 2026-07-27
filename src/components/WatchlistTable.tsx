@@ -82,9 +82,9 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold">Your watchlist</h1>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2">
           <button
             onClick={handleCheckPrices}
             disabled={checkingPrices || items.length === 0}
@@ -118,62 +118,120 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
           No tickers yet. Add one to start setting buy/sell thresholds.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-zinc-200 dark:border-zinc-800">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-zinc-50 text-zinc-500 dark:bg-zinc-900">
-              <tr>
-                <th className="px-4 py-2">Symbol</th>
-                <th className="px-4 py-2">Last price</th>
-                <th className="px-4 py-2">Buy at/below</th>
-                <th className="px-4 py-2">Sell at/above</th>
-                <th className="px-4 py-2">Qty</th>
-                <th className="px-4 py-2">Status</th>
-                <th className="px-4 py-2"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr
-                  key={item.id}
-                  onClick={() => setHistoryItem(item)}
-                  className="cursor-pointer border-t border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
-                >
-                  <td className="px-4 py-2 font-medium">{item.symbol}</td>
-                  <td className="px-4 py-2">
-                    {prices[item.symbol] !== undefined
-                      ? formatMoney(prices[item.symbol])
-                      : "—"}
-                  </td>
-                  <td className="px-4 py-2">{formatMoney(item.buy_at_or_below)}</td>
-                  <td className="px-4 py-2">{formatMoney(item.sell_at_or_above)}</td>
-                  <td className="px-4 py-2">{item.qty}</td>
-                  <td className="px-4 py-2">{statusLabel(item.status)}</td>
-                  <td className="px-4 py-2 text-right">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingItem(item);
-                      }}
-                      className="mr-3 text-zinc-600 hover:underline dark:text-zinc-400"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(item.id);
-                      }}
-                      disabled={deletingId === item.id}
-                      className="text-red-600 hover:underline disabled:opacity-50"
-                    >
-                      Remove
-                    </button>
-                  </td>
+        <>
+          {/* Card list - small screens, no horizontal scrolling */}
+          <div className="flex flex-col gap-3 sm:hidden">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                onClick={() => setHistoryItem(item)}
+                className="cursor-pointer rounded-md border border-zinc-200 p-3 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-medium">{item.symbol}</span>
+                  <span className="text-xs text-zinc-500">{statusLabel(item.status)}</span>
+                </div>
+                <div className="mt-1 text-sm text-zinc-500">
+                  Last price:{" "}
+                  {prices[item.symbol] !== undefined ? formatMoney(prices[item.symbol]) : "—"}
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-y-1 text-sm">
+                  <div>
+                    <span className="text-zinc-500">Buy at/below </span>
+                    {formatMoney(item.buy_at_or_below)}
+                  </div>
+                  <div>
+                    <span className="text-zinc-500">Sell at/above </span>
+                    {formatMoney(item.sell_at_or_above)}
+                  </div>
+                  <div>
+                    <span className="text-zinc-500">Qty </span>
+                    {item.qty}
+                  </div>
+                </div>
+                <div className="mt-3 flex justify-end gap-4 text-sm">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingItem(item);
+                    }}
+                    className="text-zinc-600 hover:underline dark:text-zinc-400"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDelete(item.id);
+                    }}
+                    disabled={deletingId === item.id}
+                    className="text-red-600 hover:underline disabled:opacity-50"
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Table - larger screens */}
+          <div className="hidden overflow-x-auto rounded-md border border-zinc-200 sm:block dark:border-zinc-800">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-zinc-50 text-zinc-500 dark:bg-zinc-900">
+                <tr>
+                  <th className="px-4 py-2">Symbol</th>
+                  <th className="px-4 py-2">Last price</th>
+                  <th className="px-4 py-2">Buy at/below</th>
+                  <th className="px-4 py-2">Sell at/above</th>
+                  <th className="px-4 py-2">Qty</th>
+                  <th className="px-4 py-2">Status</th>
+                  <th className="px-4 py-2"></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr
+                    key={item.id}
+                    onClick={() => setHistoryItem(item)}
+                    className="cursor-pointer border-t border-zinc-200 hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900"
+                  >
+                    <td className="px-4 py-2 font-medium">{item.symbol}</td>
+                    <td className="px-4 py-2">
+                      {prices[item.symbol] !== undefined
+                        ? formatMoney(prices[item.symbol])
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-2">{formatMoney(item.buy_at_or_below)}</td>
+                    <td className="px-4 py-2">{formatMoney(item.sell_at_or_above)}</td>
+                    <td className="px-4 py-2">{item.qty}</td>
+                    <td className="px-4 py-2">{statusLabel(item.status)}</td>
+                    <td className="px-4 py-2 text-right">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingItem(item);
+                        }}
+                        className="mr-3 text-zinc-600 hover:underline dark:text-zinc-400"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(item.id);
+                        }}
+                        disabled={deletingId === item.id}
+                        className="text-red-600 hover:underline disabled:opacity-50"
+                      >
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {showAddModal && (

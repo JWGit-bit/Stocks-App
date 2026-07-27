@@ -22,21 +22,23 @@ export default async function ProtectedLayout({
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="flex items-center justify-between border-b border-zinc-200 px-6 py-3 dark:border-zinc-800">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-zinc-200 px-4 py-3 sm:px-6 dark:border-zinc-800">
         <nav className="flex items-center gap-4">
-          <Link href="/dashboard" className="text-sm font-medium">
+          <Link href="/dashboard" className="text-sm font-medium whitespace-nowrap">
             Watchlist
           </Link>
-          <Link href="/settings" className="text-sm font-medium">
+          <Link href="/settings" className="text-sm font-medium whitespace-nowrap">
             Settings
           </Link>
         </nav>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-zinc-500">{user.email}</span>
+          <span className="truncate text-sm text-zinc-500 max-w-[40vw] sm:max-w-none">
+            {user.email}
+          </span>
           <SignOutButton />
         </div>
       </header>
-      <main className="flex flex-1 flex-col p-6">{children}</main>
+      <main className="flex flex-1 flex-col overflow-x-hidden p-4 sm:p-6">{children}</main>
     </div>
   );
 }
