@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { WatchlistTable } from "@/components/WatchlistTable";
 import { AccountSummary } from "@/components/AccountSummary";
+import { MarketStatusBanner } from "@/components/MarketStatusBanner";
 import type { WatchlistItem } from "@/lib/types";
 
 export default async function DashboardPage() {
@@ -12,6 +13,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
+      <MarketStatusBanner />
       <AccountSummary />
       <WatchlistTable initialItems={(data ?? []) as WatchlistItem[]} />
     </div>

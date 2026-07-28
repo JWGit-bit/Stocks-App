@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runTradingCheck } from "@/lib/trading-engine/runCheck";
 
+export const dynamic = "force-dynamic";
+
 // Lets a logged-in user manually trigger the trading engine for just their
 // own watchlist, so they don't have to wait for the next cron tick to see
 // it work. Writing to `trades` requires the admin client (RLS only grants

@@ -5,6 +5,9 @@ import { getAccount } from "@/lib/alpaca/client";
 import { getLatestTrades } from "@/lib/alpaca/marketData";
 import type { WatchlistItem } from "@/lib/types";
 
+// Account balances and P/L must never be served from Next's route cache.
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const supabase = await createClient();
   const {

@@ -4,6 +4,8 @@ import { encrypt } from "@/lib/crypto";
 import { getAccount, AlpacaError } from "@/lib/alpaca/client";
 import type { BrokerSettingsRow } from "@/lib/alpaca/credentials";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const supabase = await createClient();
   const {

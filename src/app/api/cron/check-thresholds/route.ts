@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { runTradingCheck } from "@/lib/trading-engine/runCheck";
 
+export const dynamic = "force-dynamic";
+
 // Hit by the external cron pinger (cron-job.org) every 1-2 minutes. Treat
 // this endpoint as equivalent to a "place real trades" button - the bearer
 // secret is the only thing standing between the public internet and the

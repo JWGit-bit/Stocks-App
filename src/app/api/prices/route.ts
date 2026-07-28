@@ -3,6 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { getUserCredentials } from "@/lib/alpaca/credentials";
 import { getLatestTrades } from "@/lib/alpaca/marketData";
 
+// Live prices must never be served from Next's route cache.
+export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   const supabase = await createClient();
   const {

@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getUserCredentials } from "@/lib/alpaca/credentials";
-import { getBars } from "@/lib/alpaca/marketData";
+import { getClock } from "@/lib/alpaca/client";
 
-// Price history must never be served from Next's route cache.
 export const dynamic = "force-dynamic";
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ symbol: string }> },
-) {
-  const { symbol } = await params;
+export async function GET() {
   const supabase = await createClient();
   const {
     data: { user },
@@ -27,20 +22,16 @@ export async function GET(
     );
   }
 
-  const end = new Date();
-  const start = new Date(end);
-  start.setMonth(start.getMonth() - 6);
-
   try {
-    const bars = await getBars(symbol.toUpperCase(), credentials.creds, {
-      timeframe: "1Day",
-      start: start.toISOString(),
-      end: end.toISOString(),
+    const clock = await getClock(credentials.creds, credentials.mode);
+    return NextResponse.json({
+      isOpen: clock.is_open,
+      nextOpen: clock.next_open,
+      nextClose: clock.next_close,
     });
-    return NextResponse.json({ bars });
   } catch {
     return NextResponse.json(
-      { error: "Could not fetch price history from Alpaca right now." },
+      { error: "Could not reach Alpaca for market status right now." },
       { status: 502 },
     );
   }

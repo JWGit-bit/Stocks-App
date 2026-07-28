@@ -29,6 +29,9 @@ export async function alpacaRequest(
 ) {
   const res = await fetch(url, {
     ...init,
+    // Prices, account balances, and order status must never be served from
+    // Next.js's fetch Data Cache - a cached "latest price" is a wrong price.
+    cache: "no-store",
     headers: {
       ...authHeaders(creds),
       ...(init.body ? { "Content-Type": "application/json" } : {}),
