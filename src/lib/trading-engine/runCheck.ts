@@ -45,7 +45,8 @@ export async function runTradingCheck(
     let activeQuery = supabase
       .from("watchlist_items")
       .select("*")
-      .in("status", ["watching_buy", "holding"]);
+      .in("status", ["watching_buy", "holding"])
+      .eq("paused", false);
     if (options.onlyUserId) activeQuery = activeQuery.eq("user_id", options.onlyUserId);
     const { data: activeItems } = await activeQuery;
 

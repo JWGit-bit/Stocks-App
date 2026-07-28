@@ -12,6 +12,7 @@ export interface WatchlistItem {
   sell_at_or_above: number | null;
   qty: number;
   status: WatchlistStatus;
+  paused: boolean;
   open_order_id: string | null;
   last_checked_at: string | null;
   created_at: string;

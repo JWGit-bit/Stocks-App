@@ -3,15 +3,18 @@
 import { useState } from "react";
 import { AddTickerModal } from "@/components/AddTickerModal";
 import { StockHistoryModal } from "@/components/StockHistoryModal";
+import { AllHistoryModal } from "@/components/AllHistoryModal";
 import { statusLabel, formatMoney } from "@/lib/format";
 import type { WatchlistItem } from "@/lib/types";
 
 export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[] }) {
   const [items, setItems] = useState(initialItems);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showAllHistory, setShowAllHistory] = useState(false);
   const [editingItem, setEditingItem] = useState<WatchlistItem | null>(null);
   const [historyItem, setHistoryItem] = useState<WatchlistItem | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingPauseId, setTogglingPauseId] = useState<string | null>(null);
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [checkingPrices, setCheckingPrices] = useState(false);
   const [priceError, setPriceError] = useState<string | null>(null);
@@ -80,6 +83,20 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
     }
   }
 
+  async function handleTogglePause(item: WatchlistItem) {
+    setTogglingPauseId(item.id);
+    const res = await fetch(`/api/watchlist/${item.id}/pause`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paused: !item.paused }),
+    });
+    setTogglingPauseId(null);
+    if (res.ok) {
+      const json = await res.json();
+      setItems((prev) => prev.map((i) => (i.id === item.id ? (json.item as WatchlistItem) : i)));
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -99,6 +116,12 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
             className="rounded-md border border-blue-300 px-4 py-2 text-sm font-medium text-blue-700 disabled:opacity-50 dark:border-blue-800 dark:text-blue-400"
           >
             {runningTrades ? "Running..." : "Run trading check"}
+          </button>
+          <button
+            onClick={() => setShowAllHistory(true)}
+            className="rounded-md border border-zinc-300 px-4 py-2 text-sm font-medium disabled:opacity-50 dark:border-zinc-700"
+          >
+            History
           </button>
           <button
             onClick={() => setShowAddModal(true)}
@@ -129,7 +152,10 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
               >
                 <div className="flex items-center justify-between">
                   <span className="font-medium">{item.symbol}</span>
-                  <span className="text-xs text-zinc-500">{statusLabel(item.status)}</span>
+                  <span className="text-xs text-zinc-500">
+                    {statusLabel(item.status)}
+                    {item.paused && " · Paused"}
+                  </span>
                 </div>
                 <div className="mt-1 text-sm text-zinc-500">
                   Last price:{" "}
@@ -150,6 +176,16 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
                   </div>
                 </div>
                 <div className="mt-3 flex justify-end gap-4 text-sm">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleTogglePause(item);
+                    }}
+                    disabled={togglingPauseId === item.id}
+                    className="text-zinc-600 hover:underline disabled:opacity-50 dark:text-zinc-400"
+                  >
+                    {item.paused ? "Resume" : "Pause"}
+                  </button>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -204,8 +240,21 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
                     <td className="px-4 py-2">{formatMoney(item.buy_at_or_below)}</td>
                     <td className="px-4 py-2">{formatMoney(item.sell_at_or_above)}</td>
                     <td className="px-4 py-2">{item.qty}</td>
-                    <td className="px-4 py-2">{statusLabel(item.status)}</td>
+                    <td className="px-4 py-2">
+                      {statusLabel(item.status)}
+                      {item.paused && " · Paused"}
+                    </td>
                     <td className="px-4 py-2 text-right">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTogglePause(item);
+                        }}
+                        disabled={togglingPauseId === item.id}
+                        className="mr-3 text-zinc-600 hover:underline disabled:opacity-50 dark:text-zinc-400"
+                      >
+                        {item.paused ? "Resume" : "Pause"}
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -247,6 +296,7 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
       {historyItem && (
         <StockHistoryModal item={historyItem} onClose={() => setHistoryItem(null)} />
       )}
+      {showAllHistory && <AllHistoryModal onClose={() => setShowAllHistory(false)} />}
     </div>
   );
 }
