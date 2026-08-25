@@ -47,3 +47,6 @@ HowTo.docx
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# stray db file from another project, not part of this app
+UsersjoshuAppDataLocalmoney-appmoney.db

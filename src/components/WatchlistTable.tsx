@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AddTickerModal } from "@/components/AddTickerModal";
 import { StockHistoryModal } from "@/components/StockHistoryModal";
 import { AllHistoryModal } from "@/components/AllHistoryModal";
+import { RemoveTickerModal } from "@/components/RemoveTickerModal";
 import { statusLabel, formatMoney } from "@/lib/format";
 import type { WatchlistItem } from "@/lib/types";
 
@@ -13,7 +14,7 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [editingItem, setEditingItem] = useState<WatchlistItem | null>(null);
   const [historyItem, setHistoryItem] = useState<WatchlistItem | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [removingItem, setRemovingItem] = useState<WatchlistItem | null>(null);
   const [togglingPauseId, setTogglingPauseId] = useState<string | null>(null);
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [checkingPrices, setCheckingPrices] = useState(false);
@@ -38,9 +39,7 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
         ? `${json.actionsTaken} order${json.actionsTaken === 1 ? "" : "s"} placed.`
         : "No thresholds crossed - nothing to do.",
     );
-    const refreshed = await fetch("/api/watchlist");
-    const refreshedJson = await refreshed.json();
-    if (refreshed.ok) setItems(refreshedJson.items as WatchlistItem[]);
+    await refreshItems();
   }
 
   async function handleCheckPrices() {
@@ -48,7 +47,9 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
     setCheckingPrices(true);
     setPriceError(null);
     const symbols = items.map((i) => i.symbol).join(",");
-    const res = await fetch(`/api/prices?symbols=${encodeURIComponent(symbols)}`);
+    const res = await fetch(`/api/prices?symbols=${encodeURIComponent(symbols)}`, {
+      cache: "no-store",
+    });
     const json = await res.json();
     setCheckingPrices(false);
     if (!res.ok) {
@@ -71,16 +72,10 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
     setEditingItem(null);
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Remove this ticker from your watchlist? This does not sell any shares you may already hold.")) {
-      return;
-    }
-    setDeletingId(id);
-    const res = await fetch(`/api/watchlist/${id}`, { method: "DELETE" });
-    setDeletingId(null);
-    if (res.ok) {
-      setItems((prev) => prev.filter((i) => i.id !== id));
-    }
+  async function refreshItems() {
+    const res = await fetch("/api/watchlist", { cache: "no-store" });
+    const json = await res.json();
+    if (res.ok) setItems(json.items as WatchlistItem[]);
   }
 
   async function handleTogglePause(item: WatchlistItem) {
@@ -174,6 +169,12 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
                     <span className="text-zinc-500">Qty </span>
                     {item.qty}
                   </div>
+                  {item.trail_percent !== null && (
+                    <div>
+                      <span className="text-zinc-500">Trailing stop </span>
+                      {item.trail_percent}%
+                    </div>
+                  )}
                 </div>
                 <div className="mt-3 flex justify-end gap-4 text-sm">
                   <button
@@ -198,10 +199,9 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleDelete(item.id);
+                      setRemovingItem(item);
                     }}
-                    disabled={deletingId === item.id}
-                    className="text-red-600 hover:underline disabled:opacity-50"
+                    className="text-red-600 hover:underline"
                   >
                     Remove
                   </button>
@@ -219,6 +219,7 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
                   <th className="px-4 py-2">Last price</th>
                   <th className="px-4 py-2">Buy at/below</th>
                   <th className="px-4 py-2">Sell at/above</th>
+                  <th className="px-4 py-2">Trail</th>
                   <th className="px-4 py-2">Qty</th>
                   <th className="px-4 py-2">Status</th>
                   <th className="px-4 py-2"></th>
@@ -239,6 +240,9 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
                     </td>
                     <td className="px-4 py-2">{formatMoney(item.buy_at_or_below)}</td>
                     <td className="px-4 py-2">{formatMoney(item.sell_at_or_above)}</td>
+                    <td className="px-4 py-2">
+                      {item.trail_percent !== null ? `${item.trail_percent}%` : "—"}
+                    </td>
                     <td className="px-4 py-2">{item.qty}</td>
                     <td className="px-4 py-2">
                       {statusLabel(item.status)}
@@ -267,10 +271,9 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(item.id);
+                          setRemovingItem(item);
                         }}
-                        disabled={deletingId === item.id}
-                        className="text-red-600 hover:underline disabled:opacity-50"
+                        className="text-red-600 hover:underline"
                       >
                         Remove
                       </button>
@@ -297,6 +300,23 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
         <StockHistoryModal item={historyItem} onClose={() => setHistoryItem(null)} />
       )}
       {showAllHistory && <AllHistoryModal onClose={() => setShowAllHistory(false)} />}
+      {removingItem && (
+        <RemoveTickerModal
+          item={removingItem}
+          onClose={() => setRemovingItem(null)}
+          onRemoved={(id) => {
+            setItems((prev) => prev.filter((i) => i.id !== id));
+            setRemovingItem(null);
+          }}
+          onSold={async () => {
+            setRemovingItem(null);
+            setRunResult(
+              "Sell order placed. It'll show as sold once the fill comes back.",
+            );
+            await refreshItems();
+          }}
+        />
+      )}
     </div>
   );
 }

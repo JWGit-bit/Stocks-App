@@ -28,7 +28,7 @@ export function MarketStatusBanner() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/market-status")
+    fetch("/api/market-status", { cache: "no-store" })
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;

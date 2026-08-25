@@ -21,6 +21,9 @@ export function AddTickerModal({
     existingItem?.sell_at_or_above?.toString() ?? "",
   );
   const [qty, setQty] = useState(existingItem?.qty?.toString() ?? "1");
+  const [trailPercent, setTrailPercent] = useState(
+    existingItem?.trail_percent?.toString() ?? "",
+  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -34,6 +37,7 @@ export function AddTickerModal({
       buyAtOrBelow: buyAtOrBelow === "" ? null : Number(buyAtOrBelow),
       sellAtOrAbove: sellAtOrAbove === "" ? null : Number(sellAtOrAbove),
       qty: Number(qty),
+      trailPercent: trailPercent === "" ? null : Number(trailPercent),
     };
 
     const res = await fetch(
@@ -118,6 +122,27 @@ export function AddTickerModal({
             onChange={(e) => setQty(e.target.value)}
             className="w-32 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
           />
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <label htmlFor="trail" className="text-sm font-medium">
+            Trailing stop-loss (%) — optional
+          </label>
+          <input
+            id="trail"
+            type="number"
+            step="0.1"
+            min="0"
+            max="99"
+            placeholder="off"
+            value={trailPercent}
+            onChange={(e) => setTrailPercent(e.target.value)}
+            className="w-32 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950"
+          />
+          <p className="text-xs text-zinc-500">
+            Tracks the highest price since buying and sells if it falls this far
+            below that high. Leave blank to turn off.
+          </p>
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

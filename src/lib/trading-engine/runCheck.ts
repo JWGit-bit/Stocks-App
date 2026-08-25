@@ -3,8 +3,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getUserCredentials, type BrokerSettingsRow } from "@/lib/alpaca/credentials";
 import { getClock } from "@/lib/alpaca/client";
 import { getLatestTrades } from "@/lib/alpaca/marketData";
-import { placeOrder, getOrder } from "@/lib/alpaca/orders";
-import { decideAction, limitPriceFor } from "@/lib/trading-engine/decide";
+import {
+  placeOrder,
+  getOrder,
+  getPositions,
+  getClosedOrders,
+  type AlpacaOrder,
+} from "@/lib/alpaca/orders";
+import { decideAction, limitPriceFor, nextTrailHigh } from "@/lib/trading-engine/decide";
 import type { WatchlistItem } from "@/lib/types";
 
 const STALE_QUOTE_MS = 5 * 60 * 1000;
@@ -42,6 +48,17 @@ export async function runTradingCheck(
       await reconcileItem(supabase, item);
     }
 
+    // Positions can change outside this app (Alpaca's dashboard, another
+    // tool, or a ticker re-added after it was removed). Sync against what
+    // the broker actually holds before deciding anything.
+    let restingQuery = supabase
+      .from("watchlist_items")
+      .select("*")
+      .in("status", ["holding", "watching_buy"]);
+    if (options.onlyUserId) restingQuery = restingQuery.eq("user_id", options.onlyUserId);
+    const { data: restingItems } = await restingQuery;
+    await reconcilePositions(supabase, (restingItems ?? []) as WatchlistItem[]);
+
     let activeQuery = supabase
       .from("watchlist_items")
       .select("*")
@@ -75,6 +92,129 @@ export async function runTradingCheck(
   });
 
   return { itemsChecked, actionsTaken, error };
+}
+
+// Keeps our idea of what we hold in step with what the broker actually
+// holds, in both directions:
+//   - we think holding, broker says no  -> log the closing sell, go back to
+//     watching_buy (covers a position closed outside this app)
+//   - we think watching_buy, broker says we hold it -> adopt it as holding,
+//     so we don't buy a second time on top of an existing position
+async function reconcilePositions(
+  supabase: SupabaseClient,
+  restingItems: WatchlistItem[],
+) {
+  const byUser = new Map<string, WatchlistItem[]>();
+  for (const item of restingItems) {
+    if (!byUser.has(item.user_id)) byUser.set(item.user_id, []);
+    byUser.get(item.user_id)!.push(item);
+  }
+
+  for (const [userId, items] of byUser) {
+    const credentials = await getUserCredentials(supabase, userId);
+    if (!credentials) continue;
+
+    let positions;
+    try {
+      positions = await getPositions(credentials.creds, credentials.mode);
+    } catch {
+      continue; // transient error - try again next tick
+    }
+    const positionBySymbol = new Map(positions.map((p) => [p.symbol, p]));
+
+    // Adopt positions the broker holds that we think we're only watching.
+    for (const item of items) {
+      if (item.status !== "watching_buy") continue;
+      const position = positionBySymbol.get(item.symbol);
+      if (!position) continue;
+
+      await supabase
+        .from("watchlist_items")
+        .update({
+          status: "holding",
+          trail_high_price:
+            item.trail_percent !== null ? Number(position.avg_entry_price) : null,
+        })
+        .eq("id", item.id)
+        .eq("status", "watching_buy");
+    }
+
+    const closedItems = items.filter(
+      (i) => i.status === "holding" && !positionBySymbol.has(i.symbol),
+    );
+    if (closedItems.length === 0) continue;
+
+    let closedOrders: AlpacaOrder[] = [];
+    try {
+      closedOrders = await getClosedOrders(credentials.creds, credentials.mode, {
+        symbols: closedItems.map((i) => i.symbol),
+      });
+    } catch {
+      // Fall through: still correct the status below, just without a
+      // matched fill price.
+    }
+
+    for (const item of closedItems) {
+      const { data: buyTrade } = await supabase
+        .from("trades")
+        .select("id, filled_avg_price, qty, alpaca_order_id")
+        .eq("watchlist_item_id", item.id)
+        .eq("side", "buy")
+        .eq("status", "filled")
+        .order("filled_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const sellOrder = closedOrders.find(
+        (o) => o.symbol === item.symbol && o.side === "sell" && o.status === "filled",
+      );
+
+      // Don't double-log if this sell was already recorded.
+      if (sellOrder) {
+        const { data: existing } = await supabase
+          .from("trades")
+          .select("id")
+          .eq("alpaca_order_id", sellOrder.id)
+          .maybeSingle();
+        if (!existing) {
+          const filledAvgPrice = sellOrder.filled_avg_price
+            ? Number(sellOrder.filled_avg_price)
+            : null;
+          const realizedPnl =
+            filledAvgPrice !== null && buyTrade?.filled_avg_price
+              ? (filledAvgPrice - Number(buyTrade.filled_avg_price)) * Number(buyTrade.qty)
+              : null;
+
+          await supabase.from("trades").insert({
+            user_id: userId,
+            watchlist_item_id: item.id,
+            symbol: item.symbol,
+            side: "sell",
+            qty: sellOrder.filled_qty ? Number(sellOrder.filled_qty) : item.qty,
+            alpaca_order_id: sellOrder.id,
+            client_order_id: sellOrder.client_order_id,
+            status: sellOrder.status,
+            filled_avg_price: filledAvgPrice,
+            realized_pnl: realizedPnl,
+            is_paper: credentials.mode === "paper",
+            source: "external",
+            filled_at: new Date().toISOString(),
+            raw_response: sellOrder,
+          });
+        }
+      }
+
+      await supabase
+        .from("watchlist_items")
+        .update({
+          status: "watching_buy",
+          open_order_id: null,
+          trail_high_price: null,
+        })
+        .eq("id", item.id)
+        .eq("status", "holding");
+    }
+  }
 }
 
 async function reconcileItem(supabase: SupabaseClient, item: WatchlistItem) {
@@ -122,9 +262,15 @@ async function reconcileItem(supabase: SupabaseClient, item: WatchlistItem) {
       })
       .eq("alpaca_order_id", order.id);
 
+    // Seed the trailing high at the buy fill price; clear it on a sell so
+    // the next position starts its own high-water mark.
     await supabase
       .from("watchlist_items")
-      .update({ status: wasBuy ? "holding" : "watching_buy", open_order_id: null })
+      .update({
+        status: wasBuy ? "holding" : "watching_buy",
+        open_order_id: null,
+        trail_high_price: wasBuy ? filledAvgPrice : null,
+      })
       .eq("id", item.id);
     return;
   }
@@ -194,6 +340,19 @@ async function processUser(
     const quote = priceBySymbol.get(item.symbol);
     if (!quote) continue;
     if (Date.now() - new Date(quote.timestamp).getTime() > STALE_QUOTE_MS) continue;
+
+    // Ratchet the trailing high up before deciding, so a new high in this
+    // same tick raises the stop rather than being missed until the next one.
+    if (item.status === "holding" && item.trail_percent !== null) {
+      const newHigh = nextTrailHigh(item, quote.price);
+      if (newHigh !== null && newHigh !== item.trail_high_price) {
+        item.trail_high_price = newHigh;
+        await supabase
+          .from("watchlist_items")
+          .update({ trail_high_price: newHigh })
+          .eq("id", item.id);
+      }
+    }
 
     const action = decideAction(item, quote.price);
     if (action === "none") continue;

@@ -21,7 +21,7 @@ export function StockHistoryModal({
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/trades?watchlistItemId=${item.id}`)
+    fetch(`/api/trades?watchlistItemId=${item.id}`, { cache: "no-store" })
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;
@@ -36,7 +36,7 @@ export function StockHistoryModal({
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`/api/stocks/${item.symbol}/history`)
+    fetch(`/api/stocks/${item.symbol}/history`, { cache: "no-store" })
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;
@@ -99,7 +99,17 @@ export function StockHistoryModal({
                     <td className="py-1 pr-2">
                       {t.filled_avg_price ?? "—"}
                     </td>
-                    <td className="py-1 pr-2">{t.status ?? "—"}</td>
+                    <td className="py-1 pr-2">
+                      {t.status ?? "—"}
+                      {t.source === "external" && (
+                        <span
+                          title="Placed outside this app (e.g. in Alpaca directly)"
+                          className="ml-1 text-xs text-zinc-500"
+                        >
+                          (manual)
+                        </span>
+                      )}
+                    </td>
                     <td
                       className={
                         t.realized_pnl === null

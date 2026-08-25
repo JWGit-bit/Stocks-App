@@ -19,7 +19,7 @@ export function ApiKeysForm() {
   const [togglingPause, setTogglingPause] = useState(false);
 
   useEffect(() => {
-    fetch("/api/settings/alpaca-keys")
+    fetch("/api/settings/alpaca-keys", { cache: "no-store" })
       .then((res) => res.json())
       .then(setStatus);
   }, []);

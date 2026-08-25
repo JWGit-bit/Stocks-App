@@ -10,10 +10,33 @@ export function decideAction(item: WatchlistItem, currentPrice: number): TradeAc
   if (item.status === "watching_buy" && item.buy_at_or_below !== null) {
     if (currentPrice <= item.buy_at_or_below) return "buy";
   }
-  if (item.status === "holding" && item.sell_at_or_above !== null) {
-    if (currentPrice >= item.sell_at_or_above) return "sell";
+  if (item.status === "holding") {
+    if (item.sell_at_or_above !== null && currentPrice >= item.sell_at_or_above) {
+      return "sell";
+    }
+    if (hitTrailingStop(item, currentPrice)) return "sell";
   }
   return "none";
+}
+
+// Trailing stop: sells if the price falls trail_percent below the highest
+// price seen since the position was opened. Opt-in - a null trail_percent
+// means the feature is off for this item.
+export function hitTrailingStop(item: WatchlistItem, currentPrice: number): boolean {
+  if (item.trail_percent === null || item.trail_high_price === null) return false;
+  const stopPrice = item.trail_high_price * (1 - item.trail_percent / 100);
+  return currentPrice <= stopPrice;
+}
+
+// The high-water mark only ever moves up while holding; it resets when a
+// new position is opened.
+export function nextTrailHigh(
+  item: WatchlistItem,
+  currentPrice: number,
+): number | null {
+  if (item.trail_percent === null) return null;
+  if (item.trail_high_price === null) return currentPrice;
+  return Math.max(item.trail_high_price, currentPrice);
 }
 
 // Marketable limit order buffer: past the current price by this fraction so

@@ -13,6 +13,8 @@ export interface WatchlistItem {
   qty: number;
   status: WatchlistStatus;
   paused: boolean;
+  trail_percent: number | null;
+  trail_high_price: number | null;
   open_order_id: string | null;
   last_checked_at: string | null;
   created_at: string;
@@ -32,6 +34,7 @@ export interface Trade {
   filled_avg_price: number | null;
   realized_pnl: number | null;
   is_paper: boolean;
+  source: "app" | "external";
   submitted_at: string;
   filled_at: string | null;
   raw_response: unknown;

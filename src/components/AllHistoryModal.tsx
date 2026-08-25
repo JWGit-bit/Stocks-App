@@ -17,7 +17,7 @@ export function AllHistoryModal({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/trades")
+    fetch("/api/trades", { cache: "no-store" })
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;
@@ -110,7 +110,17 @@ export function AllHistoryModal({ onClose }: { onClose: () => void }) {
                         <td className="py-1 pr-2 capitalize">{t.side}</td>
                         <td className="py-1 pr-2">{t.qty}</td>
                         <td className="py-1 pr-2">{t.filled_avg_price ?? "—"}</td>
-                        <td className="py-1 pr-2">{t.status ?? "—"}</td>
+                        <td className="py-1 pr-2">
+                          {t.status ?? "—"}
+                          {t.source === "external" && (
+                            <span
+                              title="Placed outside this app (e.g. in Alpaca directly)"
+                              className="ml-1 text-xs text-zinc-500"
+                            >
+                              (manual)
+                            </span>
+                          )}
+                        </td>
                         <td
                           className={
                             t.realized_pnl === null

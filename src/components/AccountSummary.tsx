@@ -30,7 +30,7 @@ export function AccountSummary() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/account")
+    fetch("/api/account", { cache: "no-store" })
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return;

@@ -21,7 +21,7 @@ export async function PATCH(
   if (!parsed.ok) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
-  const { symbol, buyAtOrBelow, sellAtOrAbove, qty } = parsed.value;
+  const { symbol, buyAtOrBelow, sellAtOrAbove, qty, trailPercent } = parsed.value;
 
   const { data, error } = await supabase
     .from("watchlist_items")
@@ -30,6 +30,7 @@ export async function PATCH(
       buy_at_or_below: buyAtOrBelow,
       sell_at_or_above: sellAtOrAbove,
       qty,
+      trail_percent: trailPercent,
     })
     .eq("id", id)
     .select()
