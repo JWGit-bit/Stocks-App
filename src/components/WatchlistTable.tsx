@@ -5,16 +5,24 @@ import { AddTickerModal } from "@/components/AddTickerModal";
 import { StockHistoryModal } from "@/components/StockHistoryModal";
 import { AllHistoryModal } from "@/components/AllHistoryModal";
 import { RemoveTickerModal } from "@/components/RemoveTickerModal";
+import { SellNowModal } from "@/components/SellNowModal";
 import { statusLabel, formatMoney } from "@/lib/format";
 import type { WatchlistItem } from "@/lib/types";
 
-export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[] }) {
+export function WatchlistTable({
+  initialItems,
+  marketOpen = null,
+}: {
+  initialItems: WatchlistItem[];
+  marketOpen?: boolean | null;
+}) {
   const [items, setItems] = useState(initialItems);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [editingItem, setEditingItem] = useState<WatchlistItem | null>(null);
   const [historyItem, setHistoryItem] = useState<WatchlistItem | null>(null);
   const [removingItem, setRemovingItem] = useState<WatchlistItem | null>(null);
+  const [sellingItem, setSellingItem] = useState<WatchlistItem | null>(null);
   const [togglingPauseId, setTogglingPauseId] = useState<string | null>(null);
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [checkingPrices, setCheckingPrices] = useState(false);
@@ -177,6 +185,17 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
                   )}
                 </div>
                 <div className="mt-3 flex justify-end gap-4 text-sm">
+                  {item.status === "holding" && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSellingItem(item);
+                      }}
+                      className="font-medium text-blue-700 hover:underline dark:text-blue-400"
+                    >
+                      Sell
+                    </button>
+                  )}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -249,6 +268,17 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
                       {item.paused && " · Paused"}
                     </td>
                     <td className="px-4 py-2 text-right">
+                      {item.status === "holding" && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSellingItem(item);
+                          }}
+                          className="mr-3 font-medium text-blue-700 hover:underline dark:text-blue-400"
+                        >
+                          Sell
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -300,6 +330,21 @@ export function WatchlistTable({ initialItems }: { initialItems: WatchlistItem[]
         <StockHistoryModal item={historyItem} onClose={() => setHistoryItem(null)} />
       )}
       {showAllHistory && <AllHistoryModal onClose={() => setShowAllHistory(false)} />}
+      {sellingItem && (
+        <SellNowModal
+          item={sellingItem}
+          lastPrice={prices[sellingItem.symbol]}
+          marketOpen={marketOpen}
+          onClose={() => setSellingItem(null)}
+          onSold={async () => {
+            setSellingItem(null);
+            setRunResult(
+              "Sell order placed. It'll show as sold once the fill comes back.",
+            );
+            await refreshItems();
+          }}
+        />
+      )}
       {removingItem && (
         <RemoveTickerModal
           item={removingItem}
