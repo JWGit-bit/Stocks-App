@@ -20,6 +20,12 @@ export interface WatchlistItem {
   created_at: string;
 }
 
+// A watchlist row plus what its current position cost, derived from the
+// latest filled buy rather than stored on the row itself.
+export interface WatchlistItemWithEntry extends WatchlistItem {
+  entry_price: number | null;
+}
+
 export interface Trade {
   id: string;
   user_id: string;

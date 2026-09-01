@@ -19,12 +19,33 @@ export function decideAction(item: WatchlistItem, currentPrice: number): TradeAc
   return "none";
 }
 
+// The price at which a trailing stop would fire. Null when the feature is
+// off, or before a high-water mark exists (i.e. nothing is held yet).
+// Shared with the UI so what's displayed can't drift from what the engine
+// actually acts on.
+export function trailingStopPrice(item: WatchlistItem): number | null {
+  if (item.trail_percent === null || item.trail_high_price === null) return null;
+  return item.trail_high_price * (1 - item.trail_percent / 100);
+}
+
+// What selling at the trailing stop would realize, given what the position
+// cost. Positive when the stop has trailed above the entry price, which is
+// the whole point of it following the price up.
+export function trailingStopPnl(
+  item: WatchlistItem,
+  entryPrice: number | null,
+): number | null {
+  const stop = trailingStopPrice(item);
+  if (stop === null || entryPrice === null) return null;
+  return (stop - entryPrice) * item.qty;
+}
+
 // Trailing stop: sells if the price falls trail_percent below the highest
 // price seen since the position was opened. Opt-in - a null trail_percent
 // means the feature is off for this item.
 export function hitTrailingStop(item: WatchlistItem, currentPrice: number): boolean {
-  if (item.trail_percent === null || item.trail_high_price === null) return false;
-  const stopPrice = item.trail_high_price * (1 - item.trail_percent / 100);
+  const stopPrice = trailingStopPrice(item);
+  if (stopPrice === null) return false;
   return currentPrice <= stopPrice;
 }
 

@@ -7,22 +7,59 @@ import { AllHistoryModal } from "@/components/AllHistoryModal";
 import { RemoveTickerModal } from "@/components/RemoveTickerModal";
 import { SellNowModal } from "@/components/SellNowModal";
 import { statusLabel, formatMoney } from "@/lib/format";
-import type { WatchlistItem } from "@/lib/types";
+import { trailingStopPrice, trailingStopPnl } from "@/lib/trading-engine/decide";
+import type { WatchlistItem, WatchlistItemWithEntry } from "@/lib/types";
+
+// Small two-line summary of where a trailing stop currently sits and what
+// selling there would realize, so it's clear at a glance whether to let it
+// ride or move the stop.
+function TrailCell({ item }: { item: WatchlistItemWithEntry }) {
+  if (item.trail_percent === null) return <span className="text-zinc-400">—</span>;
+
+  const stop = trailingStopPrice(item);
+  const pnl = trailingStopPnl(item, item.entry_price);
+
+  return (
+    <div className="leading-tight">
+      <div>{item.trail_percent}%</div>
+      {stop === null ? (
+        <div className="text-xs text-zinc-400">starts once bought</div>
+      ) : (
+        <div className="text-xs text-zinc-500">
+          stops {formatMoney(stop)}
+          {pnl !== null && (
+            <span
+              className={
+                pnl >= 0
+                  ? " text-green-700 dark:text-green-500"
+                  : " text-red-600"
+              }
+            >
+              {" "}
+              {pnl >= 0 ? "+" : "−"}
+              {formatMoney(Math.abs(pnl))}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function WatchlistTable({
   initialItems,
   marketOpen = null,
 }: {
-  initialItems: WatchlistItem[];
+  initialItems: WatchlistItemWithEntry[];
   marketOpen?: boolean | null;
 }) {
   const [items, setItems] = useState(initialItems);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showAllHistory, setShowAllHistory] = useState(false);
-  const [editingItem, setEditingItem] = useState<WatchlistItem | null>(null);
-  const [historyItem, setHistoryItem] = useState<WatchlistItem | null>(null);
-  const [removingItem, setRemovingItem] = useState<WatchlistItem | null>(null);
-  const [sellingItem, setSellingItem] = useState<WatchlistItem | null>(null);
+  const [editingItem, setEditingItem] = useState<WatchlistItemWithEntry | null>(null);
+  const [historyItem, setHistoryItem] = useState<WatchlistItemWithEntry | null>(null);
+  const [removingItem, setRemovingItem] = useState<WatchlistItemWithEntry | null>(null);
+  const [sellingItem, setSellingItem] = useState<WatchlistItemWithEntry | null>(null);
   const [togglingPauseId, setTogglingPauseId] = useState<string | null>(null);
   const [prices, setPrices] = useState<Record<string, number>>({});
   const [checkingPrices, setCheckingPrices] = useState(false);
@@ -71,10 +108,19 @@ export function WatchlistTable({
     setPrices(next);
   }
 
+  // The add/edit endpoints return the row itself, without the derived entry
+  // price, so carry over whatever we already had for that row (null for a
+  // brand new one - it has no fill yet).
   function handleSaved(item: WatchlistItem) {
     setItems((prev) => {
-      const exists = prev.some((i) => i.id === item.id);
-      return exists ? prev.map((i) => (i.id === item.id ? item : i)) : [...prev, item];
+      const existing = prev.find((i) => i.id === item.id);
+      const merged: WatchlistItemWithEntry = {
+        ...item,
+        entry_price: existing?.entry_price ?? null,
+      };
+      return existing
+        ? prev.map((i) => (i.id === item.id ? merged : i))
+        : [...prev, merged];
     });
     setShowAddModal(false);
     setEditingItem(null);
@@ -83,10 +129,10 @@ export function WatchlistTable({
   async function refreshItems() {
     const res = await fetch("/api/watchlist", { cache: "no-store" });
     const json = await res.json();
-    if (res.ok) setItems(json.items as WatchlistItem[]);
+    if (res.ok) setItems(json.items as WatchlistItemWithEntry[]);
   }
 
-  async function handleTogglePause(item: WatchlistItem) {
+  async function handleTogglePause(item: WatchlistItemWithEntry) {
     setTogglingPauseId(item.id);
     const res = await fetch(`/api/watchlist/${item.id}/pause`, {
       method: "POST",
@@ -96,7 +142,7 @@ export function WatchlistTable({
     setTogglingPauseId(null);
     if (res.ok) {
       const json = await res.json();
-      setItems((prev) => prev.map((i) => (i.id === item.id ? (json.item as WatchlistItem) : i)));
+      setItems((prev) => prev.map((i) => (i.id === item.id ? (json.item as WatchlistItemWithEntry) : i)));
     }
   }
 
@@ -178,9 +224,9 @@ export function WatchlistTable({
                     {item.qty}
                   </div>
                   {item.trail_percent !== null && (
-                    <div>
+                    <div className="col-span-2">
                       <span className="text-zinc-500">Trailing stop </span>
-                      {item.trail_percent}%
+                      <TrailCell item={item} />
                     </div>
                   )}
                 </div>
@@ -260,7 +306,7 @@ export function WatchlistTable({
                     <td className="px-4 py-2">{formatMoney(item.buy_at_or_below)}</td>
                     <td className="px-4 py-2">{formatMoney(item.sell_at_or_above)}</td>
                     <td className="px-4 py-2">
-                      {item.trail_percent !== null ? `${item.trail_percent}%` : "—"}
+                      <TrailCell item={item} />
                     </td>
                     <td className="px-4 py-2">{item.qty}</td>
                     <td className="px-4 py-2">
