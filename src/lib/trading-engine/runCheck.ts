@@ -6,6 +6,7 @@ import { getLatestTrades } from "@/lib/alpaca/marketData";
 import {
   placeOrder,
   getOrder,
+  getOrderByClientId,
   getPositions,
   getClosedOrders,
   type AlpacaOrder,
@@ -393,8 +394,41 @@ async function processUser(
       actionsTaken++;
       remainingTrades--;
     } catch (err) {
-      // Revert the claim so this item is retried on the next tick, and
-      // record the failed attempt so it's visible in trade history.
+      // A timeout or dropped connection doesn't mean the order was
+      // rejected - it may have reached Alpaca anyway. Check by our own
+      // client_order_id before assuming failure, otherwise reverting the
+      // claim here would let the next tick place a second order.
+      const landed = await getOrderByClientId(
+        credentials.creds,
+        credentials.mode,
+        clientOrderId,
+      );
+      if (landed) {
+        await supabase.from("trades").insert({
+          user_id: userId,
+          watchlist_item_id: item.id,
+          symbol: item.symbol,
+          side: action,
+          qty: item.qty,
+          requested_price: quote.price,
+          alpaca_order_id: landed.id,
+          client_order_id: clientOrderId,
+          status: landed.status,
+          is_paper: credentials.mode === "paper",
+          source: "app",
+          raw_response: landed,
+        });
+        await supabase
+          .from("watchlist_items")
+          .update({ open_order_id: landed.id })
+          .eq("id", item.id);
+        actionsTaken++;
+        remainingTrades--;
+        continue;
+      }
+
+      // Genuinely never placed: revert the claim so this item is retried on
+      // the next tick, and record the failed attempt in trade history.
       await supabase
         .from("watchlist_items")
         .update({ status: item.status, open_order_id: null })

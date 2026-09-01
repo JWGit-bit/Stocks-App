@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getUserCredentials } from "@/lib/alpaca/credentials";
 import { getLatestTrades } from "@/lib/alpaca/marketData";
-import { placeOrder } from "@/lib/alpaca/orders";
+import { placeOrder, getOrderByClientId } from "@/lib/alpaca/orders";
 import { limitPriceFor } from "@/lib/trading-engine/decide";
 import type { WatchlistItem } from "@/lib/types";
 
@@ -110,6 +110,36 @@ export async function POST(
 
     return NextResponse.json({ ok: true, orderId: order.id });
   } catch (err) {
+    // The order may have reached Alpaca even though we lost the response
+    // (timeout, dropped connection). Check before reverting, so a sell
+    // that actually landed isn't left looking un-placed.
+    const landed = await getOrderByClientId(
+      credentials.creds,
+      credentials.mode,
+      clientOrderId,
+    );
+    if (landed) {
+      await admin.from("trades").insert({
+        user_id: user.id,
+        watchlist_item_id: item.id,
+        symbol: item.symbol,
+        side: "sell",
+        qty: item.qty,
+        requested_price: price,
+        alpaca_order_id: landed.id,
+        client_order_id: clientOrderId,
+        status: landed.status,
+        is_paper: credentials.mode === "paper",
+        source: "app",
+        raw_response: landed,
+      });
+      await admin
+        .from("watchlist_items")
+        .update({ open_order_id: landed.id })
+        .eq("id", item.id);
+      return NextResponse.json({ ok: true, orderId: landed.id });
+    }
+
     // Put the item back so it isn't stuck in pending_sell.
     await admin
       .from("watchlist_items")

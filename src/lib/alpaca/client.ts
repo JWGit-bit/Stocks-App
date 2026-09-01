@@ -20,6 +20,19 @@ function authHeaders(creds: AlpacaCredentials): HeadersInit {
   };
 }
 
+// Without this, a stalled Alpaca connection hangs the whole cron run - runs
+// of 2-4 minutes were observed, which blows past the external pinger's
+// timeout and stacks overlapping invocations. Better to give up quickly and
+// let the next tick (a minute later) retry.
+export const ALPACA_TIMEOUT_MS = 10_000;
+
+export class AlpacaTimeoutError extends Error {
+  constructor(url: string) {
+    super(`Alpaca request timed out after ${ALPACA_TIMEOUT_MS}ms: ${url}`);
+    this.name = "AlpacaTimeoutError";
+  }
+}
+
 // Shared request helper for both trading and data endpoints. Used directly
 // by orders.ts for POST/GET calls that need a body.
 export async function alpacaRequest(
@@ -27,17 +40,26 @@ export async function alpacaRequest(
   creds: AlpacaCredentials,
   init: RequestInit = {},
 ) {
-  const res = await fetch(url, {
-    ...init,
-    // Prices, account balances, and order status must never be served from
-    // Next.js's fetch Data Cache - a cached "latest price" is a wrong price.
-    cache: "no-store",
-    headers: {
-      ...authHeaders(creds),
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...init.headers,
-    },
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...init,
+      // Prices, account balances, and order status must never be served from
+      // Next.js's fetch Data Cache - a cached "latest price" is a wrong price.
+      cache: "no-store",
+      signal: init.signal ?? AbortSignal.timeout(ALPACA_TIMEOUT_MS),
+      headers: {
+        ...authHeaders(creds),
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...init.headers,
+      },
+    });
+  } catch (err) {
+    if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+      throw new AlpacaTimeoutError(url);
+    }
+    throw err;
+  }
   if (!res.ok) {
     const body = await res.text();
     throw new AlpacaError(res.status, body || res.statusText);

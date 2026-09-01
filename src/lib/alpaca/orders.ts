@@ -52,6 +52,27 @@ export async function getOrder(
   ) as Promise<AlpacaOrder>;
 }
 
+// GET /v2/orders:by_client_order_id - the only reliable way to find out
+// whether an order we lost the response to (timeout, dropped connection)
+// actually reached the broker. Returns null when it never landed.
+export async function getOrderByClientId(
+  creds: AlpacaCredentials,
+  mode: "paper" | "live",
+  clientOrderId: string,
+): Promise<AlpacaOrder | null> {
+  try {
+    return (await alpacaRequest(
+      `${tradingBaseUrl(mode)}/v2/orders:by_client_order_id?client_order_id=${encodeURIComponent(clientOrderId)}`,
+      creds,
+    )) as AlpacaOrder;
+  } catch {
+    // 404 (never placed) and transient failures both land here; treating
+    // both as "not found" is safe because the caller only uses a positive
+    // result to avoid double-ordering.
+    return null;
+  }
+}
+
 export interface AlpacaPosition {
   symbol: string;
   qty: string;

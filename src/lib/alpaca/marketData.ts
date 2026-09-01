@@ -1,5 +1,9 @@
 import "server-only";
-import { DATA_BASE, type AlpacaCredentials } from "@/lib/alpaca/client";
+import {
+  DATA_BASE,
+  ALPACA_TIMEOUT_MS,
+  type AlpacaCredentials,
+} from "@/lib/alpaca/client";
 
 interface LatestTradesResponse {
   trades: Record<string, { p: number; t: string; s: number }>;
@@ -20,6 +24,7 @@ export async function getLatestTrades(
   const url = `${DATA_BASE}/v2/stocks/trades/latest?symbols=${encodeURIComponent(symbols.join(","))}`;
   const res = await fetch(url, {
     cache: "no-store",
+    signal: AbortSignal.timeout(ALPACA_TIMEOUT_MS),
     headers: {
       "APCA-API-KEY-ID": creds.keyId,
       "APCA-API-SECRET-KEY": creds.secretKey,
@@ -60,6 +65,7 @@ export async function getBars(
   const url = `${DATA_BASE}/v2/stocks/${encodeURIComponent(symbol)}/bars?${params.toString()}`;
   const res = await fetch(url, {
     cache: "no-store",
+    signal: AbortSignal.timeout(ALPACA_TIMEOUT_MS),
     headers: {
       "APCA-API-KEY-ID": creds.keyId,
       "APCA-API-SECRET-KEY": creds.secretKey,
